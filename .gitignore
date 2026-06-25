@@ -1,0 +1,4 @@
+/target
+
+.mcp.json
+.playwright-mcp/
