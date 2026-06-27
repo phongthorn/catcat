@@ -1,0 +1,67 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: panda-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Templates are rendered by the image's envsubst entrypoint so the
+      # shared secret is injected at runtime, never committed to the conf.
+      - ./nginx/templates:/etc/nginx/templates:ro
+      # Shadow the image's stock default.conf so it can't compete with our
+      # server blocks. Done via mount (not a CMD override) so the default
+      # entrypoint still runs envsubst on the templates.
+      - ./nginx/empty.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ../front:/var/www/front:ro
+      - ../back:/var/www/back:ro
+    environment:
+      # Substituted into panda.conf.template's X-Panda-Auth header.
+      PANDA_WS_SECRET: ${PANDA_WS_SECRET}
+    # Lets the container reach panda.exe running on the Windows host
+    # at host.docker.internal:8080. host-gateway keeps this working on Linux too.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - php
+
+  php:
+    build: ./php
+    container_name: panda-php
+    restart: unless-stopped
+    volumes:
+      - ../front:/var/www/front
+      - ../back:/var/www/back
+    environment:
+      # session.php sends this in X-Panda-Auth when provisioning a Rust session.
+      PANDA_WS_SECRET: ${PANDA_WS_SECRET}
+    # php-fpm reaches the host adb server (5037) and the Rust server (8080).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.4
+    container_name: panda-mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql-data:

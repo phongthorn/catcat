@@ -4,22 +4,27 @@ Guidance for Claude Code when working in this repository.
 
 ## Commands
 
-```powershell
-# Build
-cargo build
+The repo is split by role:
+- `front/` — customer-facing PHP portal (`front/public/*.php`).
+- `back/` — backend code shared by the portal + admin dashboard (`back/lib/`, `back/config.php`, `back/db/`, `back/public/` for admin Phase 2).
+- `server/` — the Rust/Axum scrcpy server (`server/src/`, `server/static/`) and ADB management.
+- `docker/` — nginx + php-fpm + mysql compose stack.
 
-# Run (serves on http://0.0.0.0:8080)
-cargo run
+```powershell
+# Build / run the Rust server (from server/)
+cd server
+cargo build
+cargo run    # serves on http://0.0.0.0:8080
 
 # Quick check without building
 cargo check
 
-# Shortcut scripts (after setup)
-.\start.ps1   # stop old + start fresh
+# Shortcut scripts from repo root (after setup)
+.\start.ps1   # stop old + start fresh (cd server + run)
 .\stop.ps1    # stop server
 ```
 
-The server reads `static/index.html` from the working directory at runtime — always run from the project root.
+The server reads `static/index.html` from the working directory at runtime — always run it from `server/` (the `start.ps1` script does this).
 
 ## Setup on a new machine
 
@@ -51,7 +56,7 @@ adb shell chmod 755 /data/local/tmp/XWCaptureScreen.jar
 
 Add to PowerShell profile (`$PROFILE`):
 ```powershell
-function serverstart { Stop-Process -Name "panda" -Force -ErrorAction SilentlyContinue; Set-Location D:\app\panda; .\target\debug\panda.exe }
+function serverstart { Stop-Process -Name "panda" -Force -ErrorAction SilentlyContinue; Set-Location D:\app\panda\server; .\target\debug\panda.exe }
 function serverstop  { Stop-Process -Name "panda" -Force -ErrorAction SilentlyContinue; Write-Host "Server stopped" }
 ```
 
@@ -108,3 +113,67 @@ Android device
 - **Fold/unfold crash**: `XWCaptureScreen.jar` crashes on Samsung fold events (`onDisplayFoldChanged`). The WebSocket handler detects stream drop and auto-restarts scrcpy after 2s.
 - **Sessions are single-use**: `stop_rx` oneshot is moved into the video-reader task. Do not call `start()` twice on the same `ScrcpySession`.
 - **ADB daemon** must be running on `127.0.0.1:5037` before `cargo run`.
+
+---
+
+## Coding Behavior Guidelines (Karpathy)
+
+Behavioral guidelines to reduce common LLM coding mistakes.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.

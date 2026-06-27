@@ -1,0 +1,509 @@
+
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+							<style>
+								body {
+									background-color: white; /* Ensure the iframe has a white background */
+								}
+
+								
+							</style>
+                        </head>
+                        <body>
+                            <!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudEmu Responsive Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Reset พื้นฐาน */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f0f2f5;
+            overflow: hidden; /* ป้องกัน scrollbars หลัก */
+        }
+
+        /* ส่วนหัวด้านบน */
+        header {
+            height: 50px;
+            background-color: #fff;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            flex-shrink: 0;
+            z-index: 1000;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* ปุ่ม Hamburger Menu */
+        .hamburger-btn {
+            display: none; /* ซ่อนในโหมด Desktop */
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            color: #666;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+            color: #3b82f6;
+            font-size: 1.1rem;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #666;
+        }
+
+        select {
+            padding: 4px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        /* คอนเทนเนอร์หลัก */
+        .container {
+            display: flex;
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* แถบด้านซ้าย (Sidebar) */
+        .sidebar {
+            width: 240px;
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            gap: 15px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            transition: transform 0.3s ease-in-out; /* Animation สำหรับ Mobile */
+            position: relative;
+            z-index: 999;
+        }
+
+        /* บล็อกโปรไฟล์ */
+        .profile-card {
+            background: #f9f9f9;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+
+        .user-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            background-color: #e0f2fe;
+            color: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .user-details h4 {
+            font-size: 13px;
+            color: #333;
+            line-height: 1.2;
+        }
+
+        .user-details span {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .wallet-info {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        .balance {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+            margin: 4px 0;
+        }
+
+        .btn-promo {
+            display: block;
+            width: 100%;
+            margin-top: 8px;
+            padding: 8px;
+            background-color: #eff6ff;
+            color: #3b82f6;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        /* เมนูนำทาง */
+        .nav-menu {
+            list-style: none;
+        }
+
+        .nav-item {
+            padding: 8px 10px;
+            color: #555;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: 0.2s;
+            font-size: 14px;
+        }
+
+        .nav-item:hover {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+
+        .nav-item i {
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        /* พื้นที่แสดงผลเกม (กลาง) */
+        .main-view {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-color: #f0f2f5;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .game-screen {
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 9/16;
+            background-color: #fff;
+            border: 3px solid #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #333;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        
+        .game-content {
+            text-align: center;
+            padding: 10px;
+        }
+        .game-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 5px; }
+        .game-subtitle { font-size: 0.9rem; color: #666; }
+
+        /* แถบเครื่องมือด้านขวา */
+        .toolbar {
+            width: 60px;
+            background-color: #fff;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 15px;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .tool-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #666;
+            font-size: 9px;
+            cursor: pointer;
+            gap: 4px;
+        }
+
+        .tool-btn i {
+            font-size: 14px;
+            padding: 6px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+        }
+
+        .tool-btn:hover i {
+            background-color: #e0e0e0;
+        }
+
+        .wifi-status {
+            color: #4caf50;
+            font-size: 9px;
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Overlay สำหรับ Mobile เมื่อเปิด Sidebar */
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 998;
+        }
+
+        /* ============================
+           Responsive Design (สำหรับมือถือ)
+           ============================ */
+        @media (max-width: 768px) {
+            /* แสดงปุ่ม Hamburger */
+            .hamburger-btn {
+                display: block;
+            }
+
+            /* ซ่อน Toolbar ด้านขวา */
+            .toolbar {
+                display: none;
+            }
+
+            /* ปรับ Sidebar ให้เลื่อนเข้า-ออกได้ */
+            .sidebar {
+                position: absolute;
+                top: 0;
+                left: 0;
+                height: 100%;
+                width: 260px; /* กว้างขึ้นเล็กน้อยเมื่อเป็น Modal */
+                box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+                transform: translateX(-100%); /* ซ่อนไว้ด้านซ้าย */
+            }
+
+            /* Class ที่จะถูกเติมด้วย JS เพื่อเปิดเมนู */
+            .sidebar.active {
+                transform: translateX(0);
+            }
+
+            /* แสดง Overlay เมื่อเปิดเมนู */
+            .overlay.active {
+                display: block;
+            }
+
+            /* ปรับพื้นที่เกมให้เต็มเมื่อไม่มี Toolbar */
+            .main-view {
+                padding: 10px;
+            }
+
+            .game-screen {
+                max-width: 350px;
+            }
+            
+            .controls span {
+                display: none;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .sidebar {
+                width: 240px;
+            }
+
+            .user-details span {
+                display: none;
+            }
+            
+            .game-screen {
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ส่วนหัว -->
+    <header>
+        <div class="header-left">
+            <!-- ปุ่ม Hamburger -->
+            <button class="hamburger-btn" onclick="toggleSidebar()">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <div class="logo-area">
+                <i class="fa-solid fa-cloud"></i> CloudEmu
+            </div>
+        </div>
+        
+        <div style="color: #666; font-size: 13px;">SVIP-1 TH</div>
+        
+        <div class="controls">
+            <select>
+                <option>720P</option>
+                <option>1080P</option>
+            </select>
+            <i class="fa-solid fa-rotate"></i>
+            <i class="fa-solid fa-circle-question"></i>
+            <i class="fa-solid fa-headset"></i>
+        </div>
+    </header>
+
+    <!-- Overlay สำหรับคลิกแล้วปิดเมนู -->
+    <div class="overlay" onclick="closeSidebar()"></div>
+
+    <!-- เนื้อหาหลัก -->
+    <div class="container">
+        
+        <!-- แถบด้านซ้าย -->
+        <aside class="sidebar" id="sidebar">
+            <!-- บล็อกโปรไฟล์ -->
+            <div class="profile-card">
+                <div class="user-header">
+                    <div class="avatar">P</div>
+                    <div class="user-details">
+                        <h4>Phongthorn Siri</h4>
+                        <span>ID: 17070773</span>
+                    </div>
+                </div>
+                
+                <div class="wallet-info">
+                    <div style="font-size: 11px; color: #888;">Wallet Balance <i class="fa-solid fa-circle-info"></i></div>
+                    <div class="balance">$0.00</div>
+                    <a href="#" style="font-size: 11px; color: #3b82f6; text-decoration: none;">Transaction History ></a>
+                </div>
+
+                <button class="btn-promo">Promotion Commission</button>
+            </div>
+
+            <!-- เมนูนำทาง -->
+            <ul class="nav-menu">
+                <li class="nav-item"><i class="fa-solid fa-mobile-screen"></i> Cloud Phone</li>
+                <li class="nav-item"><i class="fa-solid fa-gift"></i> Rewards</li>
+                <li class="nav-item"><i class="fa-solid fa-ticket"></i> Redeem Code</li>
+                <li class="nav-item"><i class="fa-solid fa-calendar-days"></i> Subscriptions</li>
+                <li class="nav-item"><i class="fa-solid fa-comments"></i> Messages</li>
+                <li class="nav-item"><i class="fa-solid fa-clock-rotate-left"></i> Order History</li>
+                <li class="nav-item"><i class="fa-solid fa-compass"></i> Discover</li>
+                <li class="nav-item"><i class="fa-solid fa-headset"></i> Support</li>
+            </ul>
+        </aside>
+
+        <!-- พื้นที่แสดงผลเกม -->
+        <main class="main-view">
+            <div class="game-screen">
+                <div class="game-content">
+                    <div class="game-title">Game Preview</div>
+                    <div class="game-subtitle">LV.115 Demon King</div>
+                    <p style="margin-top:10px; font-size:0.8rem; color:#888;">[System] Welcome to the dungeon!</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- แถบเครื่องมือด้านขวา -->
+        <aside class="toolbar">
+            <div class="wifi-status">
+                <i class="fa-solid fa-wifi"></i>
+                <span>4ms</span>
+            </div>
+            
+            <div class="tool-btn"><i class="fa-solid fa-plus"></i></div>
+            <div class="tool-btn"><i class="fa-solid fa-minus"></i></div>
+            
+            <div style="width: 30px; height: 1px; background: #ddd; margin: 5px 0;"></div>
+            
+            <div class="tool-btn">
+                <i class="fa-solid fa-upload"></i>
+                Upload
+            </div>
+            <div class="tool-btn">
+                <i class="fa-solid fa-address-book"></i>
+                Contact
+            </div>
+            <div class="tool-btn">
+                <i class="fa-solid fa-clipboard"></i>
+                Clipboard
+            </div>
+            <div class="tool-btn">
+                <i class="fa-solid fa-arrows-rotate"></i>
+                Rotate
+            </div>
+
+            <div style="flex: 1;"></div> 
+
+            <div class="tool-btn">
+                <i class="fa-solid fa-power-off"></i>
+                Exit
+            </div>
+        </aside>
+
+    </div>
+
+    <script>
+        // ฟังก์ชันเปิด-ปิด Sidebar
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.querySelector('.overlay');
+            
+            // สลับคลาส active เพื่อเปลี่ยนสถานะการแสดงผล
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        // ฟังก์ชันปิด Sidebar (เรียกใช้เมื่อคลิกที่ Overlay)
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.querySelector('.overlay');
+            
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+    </script>
+</body>
+</html>
+
+							<script>
+                            	
+							</script>
+                        </body>
+                        </html>
+                    

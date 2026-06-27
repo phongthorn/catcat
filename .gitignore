@@ -1,4 +1,9 @@
 /target
+/server/target
 
+.env
+docker/.env
+docker/nginx/certs/
+back/config.php
 .mcp.json
 .playwright-mcp/

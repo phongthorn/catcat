@@ -1,0 +1,81 @@
+# Rendered by the nginx image's envsubst entrypoint: ${PANDA_WS_SECRET} is
+# substituted from the container environment (set in docker/.env). nginx's own
+# runtime variables ($host, $http_upgrade, …) are left untouched because they
+# are not present in the environment.
+
+# Map the WebSocket Upgrade header so /ws/{session_id} can be proxied.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# Redirect plain HTTP to HTTPS.
+server {
+    listen 80;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/certs/panda.crt;
+    ssl_certificate_key /etc/nginx/certs/panda.key;
+
+    # PHP portal lives here; public/ is the only web-exposed directory.
+    root  /var/www/front/public;
+    index index.php;
+
+    client_max_body_size 8m;
+
+    # ── PHP portal (login, grid, thumbnails, rental, admin) ──────────
+    location / {
+        # Explicit .php URLs only — no extensionless rewriting. A missing
+        # file falls through to index.php so the root (/) still works.
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass php:9000;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    # ── Internal auth gate for the video stream ──────────────────────
+    # auth_request fires this subrequest (with the user's cookie) before
+    # proxying /ws. auth_check.php returns 204 (allow) or 403 (deny).
+    location = /__auth {
+        internal;
+        include fastcgi_params;
+        fastcgi_pass php:9000;
+        fastcgi_param SCRIPT_FILENAME $document_root/auth_check.php;
+        fastcgi_param HTTP_X_ORIGINAL_URI $request_uri;
+    }
+
+    # ── Rust panda server: video/touch WS only ──────────────────────
+    # The /api endpoints (session provisioning, device list) are NOT exposed
+    # publicly: session.php reaches Rust over the internal Docker network
+    # (config rust_http) after user_owns_serial() passes. Proxying /api here
+    # would let an unauthenticated client enumerate devices and spin up scrcpy
+    # sessions on any serial, so it is intentionally omitted.
+    location /ws/ {
+        # Gate the WebSocket upgrade on session ownership.
+        auth_request /__auth;
+
+        proxy_pass http://host.docker.internal:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host       $host;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        # Shared secret so the headless Rust server accepts the upgrade only
+        # from this proxy, not from a LAN peer hitting :8080 directly.
+        proxy_set_header X-Panda-Auth "${PANDA_WS_SECRET}";
+
+        # Long-lived, unbuffered stream.
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
