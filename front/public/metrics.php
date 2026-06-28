@@ -57,11 +57,33 @@ try {
     $onlineCount = null; // ADB unavailable
 }
 
-// Filter DB sessions to only those Rust is actively streaming
+// ── Active session IDs: Rust API first, log file as fallback ────────────────
 $activeIds = $sys['active_session_ids'] ?? null;
+
+if ($activeIds === null) {
+    // Rust API unreachable — parse catcat.log to derive connected sessions
+    // Logic: session is active if "WebSocket connected" exists without a
+    // corresponding "WebSocket disconnected" for the same session ID.
+    $logFile = __DIR__ . '/../../server/catcat.log';
+    if (is_readable($logFile)) {
+        $connected    = [];
+        $disconnected = [];
+        // Read only the last 5000 lines to avoid huge file scans
+        $lines = array_slice(file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES), -5000);
+        foreach ($lines as $line) {
+            if (preg_match('/WebSocket connected for session ([0-9a-f-]{36})/i', $line, $m)) {
+                $connected[$m[1]] = true;
+            } elseif (preg_match('/WebSocket disconnected for session ([0-9a-f-]{36})/i', $line, $m)) {
+                $disconnected[$m[1]] = true;
+            }
+        }
+        $activeIds = array_values(array_keys(array_diff_key($connected, $disconnected)));
+    }
+}
+
 $activeSessions = $activeIds !== null
     ? array_filter($sessions, fn($s) => in_array($s['session_id'], $activeIds, true))
-    : $sessions; // fallback: show recent DB sessions if Rust data unavailable
+    : $sessions; // last resort: show recent DB sessions
 
 echo json_encode([
     'cpu_percent'    => $sys['cpu_percent']    ?? null,
