@@ -1,7 +1,7 @@
 # Docker stack: nginx (HTTPS proxy) + MySQL
 
-Fronts the `panda` server with an HTTPS reverse proxy and runs a standalone MySQL.
-`panda.exe` itself runs on the **Windows host** (it needs adb/USB), not in a container —
+Fronts the `catcat` server with an HTTPS reverse proxy and runs a standalone MySQL.
+`catcat.exe` itself runs on the **Windows host** (it needs adb/USB), not in a container —
 nginx reaches it via `host.docker.internal:8080`.
 
 ## First run
@@ -13,7 +13,7 @@ copy .env.example .env      # then edit MySQL passwords
 docker compose up -d
 ```
 
-Make sure `panda.exe` is running on the host first (`..\start.ps1`), then open:
+Make sure `catcat.exe` is running on the host first (`..\start.ps1`), then open:
 
 - https://localhost  (self-signed cert — browser will warn once; accept it)
 
@@ -24,7 +24,7 @@ HTTP on port 80 redirects to HTTPS.
 | Service | Port | Notes |
 |---|---|---|
 | nginx | 80, 443 | Proxies `/` and `/ws/{id}` to `host.docker.internal:8080`. WebSocket-aware. |
-| mysql | 3306 | Empty DB `panda` + user `panda`. Data persists in the `mysql-data` volume. Not yet wired into panda. |
+| mysql | 3306 | Empty DB `catcat` + user `catcat`. Data persists in the `mysql-data` volume. Not yet wired into catcat. |
 
 ## Common commands
 

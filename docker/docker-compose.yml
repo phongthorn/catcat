@@ -1,7 +1,7 @@
 services:
   nginx:
     image: nginx:1.27-alpine
-    container_name: panda-nginx
+    container_name: catcat-nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -18,9 +18,9 @@ services:
       - ../front:/var/www/front:ro
       - ../back:/var/www/back:ro
     environment:
-      # Substituted into panda.conf.template's X-Panda-Auth header.
-      PANDA_WS_SECRET: ${PANDA_WS_SECRET}
-    # Lets the container reach panda.exe running on the Windows host
+      # Substituted into catcat.conf.template's X-Catcat-Auth header.
+      CATCAT_WS_SECRET: ${CATCAT_WS_SECRET}
+    # Lets the container reach catcat.exe running on the Windows host
     # at host.docker.internal:8080. host-gateway keeps this working on Linux too.
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -29,14 +29,14 @@ services:
 
   php:
     build: ./php
-    container_name: panda-php
+    container_name: catcat-php
     restart: unless-stopped
     volumes:
       - ../front:/var/www/front
       - ../back:/var/www/back
     environment:
-      # session.php sends this in X-Panda-Auth when provisioning a Rust session.
-      PANDA_WS_SECRET: ${PANDA_WS_SECRET}
+      # session.php sends this in X-Catcat-Auth when provisioning a Rust session.
+      CATCAT_WS_SECRET: ${CATCAT_WS_SECRET}
     # php-fpm reaches the host adb server (5037) and the Rust server (8080).
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -46,7 +46,7 @@ services:
 
   mysql:
     image: mysql:8.4
-    container_name: panda-mysql
+    container_name: catcat-mysql
     restart: unless-stopped
     ports:
       - "3306:3306"

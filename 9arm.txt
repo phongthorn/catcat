@@ -1,0 +1,83 @@
+# System Architecture Design Request: High-Performance Android Cloud Phone Platform
+
+**Role:** Senior Cloud Infrastructure Architect & Rust Backend Expert  
+**Date:** 2026-05-22  
+**Status:** Draft  
+
+## 1. Project Overview
+We are developing a commercial **Real Android Cloud Phone** platform where users rent physical Android smartphones remotely via a web browser. The focus is on **high concurrency**, **low latency**, and **maximum stability**.
+
+### Key Metrics & Constraints
+*   **Device Scale:** Max **300** physical Android devices.
+*   **User Scale:** Max **300** concurrent users.
+*   **Usage Model:** 1 User may rent >1 Device simultaneously.
+*   **Core Objective:** Smooth video streaming (low latency) and robust connection management.
+*   **Preferred Stack:** Rust Backend (Async/Await), WebSocket, Linux Host.
+
+## 2. Infrastructure Design Requirements
+Propose optimal hardware and network specifications for the host server to handle 300 concurrent ADB/TCP streams.
+
+### 2.1 Hardware Specifications
+*   **CPU:** Determine the balance between Core Count (for I/O multiplexing) vs. Clock Speed. Recommend specific generation/architecture (e.g., AMD EPYC vs. Intel Xeon).
+*   **RAM:** Estimate memory footprint per ADB session + buffer overhead. Recommend total RAM size.
+*   **Storage:** IOPS and throughput requirements for logging, crash dumps, and temporary frame buffers. Recommend NVMe tier.
+*   **Network Interface Cards (NICs):** Recommend bandwidth (1Gbps vs 10Gbps) and dual-NIC setup for separating User Traffic vs. Device Traffic.
+
+### 2.2 Network Topology
+*   **VLAN Strategy:** How to isolate Android device traffic from public user traffic.
+*   **Wi-Fi vs. Wired:** Pros/Cons analysis. If Wi-Fi is mandatory, specify AP standards (Wi-Fi 6/6E) and channel planning to minimize interference among 300 devices.
+*   **Bandwidth Calculation:** 
+    *   Assume ~15-20 FPS streaming.
+    *   Calculate total inbound/outbound bandwidth requirements for 300 concurrent streams.
+
+## 3. Software Architecture (Rust Backend)
+Design a monolithic, high-performance Rust application using `tokio` for asynchronous I/O. Avoid microservices complexity unless strictly necessary for scalability.
+
+### 3.1 Core Components
+1.  **Device Manager (Singleton):**
+    *   Manages the lifecycle of 300 persistent TCP connections to `adbd` (Port 5555).
+    *   Implements **Lazy Initialization**: Connect only when a user requests access.
+    *   Implements **Health Checks**: Heartbeat mechanisms to detect offline devices.
+2.  **Streaming Engine:**
+    *   **Capture Method:** Use `adb exec-out screencap -p`.
+    *   **Compression Strategy:** Decide between Server-side JPEG compression (lower bandwidth, higher CPU) vs. Raw/Lightweight transmission (higher bandwidth, lower CPU). Justify based on "Smoothness" goal.
+    *   **Fan-Out Logic:** Efficiently broadcast one captured frame to multiple WebSocket subscribers watching the same device.
+3.  **Input Router:**
+    *   Translate Web Mouse/Touch events to ADB `input tap` or `input swipe` commands.
+    *   Ensure low-latency delivery (<100ms target).
+
+### 3.2 Concurrency & Performance
+*   **Thread Model:** Explain how `tokio` multithreaded runtime will be utilized (Worker threads vs. Async tasks).
+*   **Memory Management:** Strategies to prevent memory leaks in long-running streams.
+*   **File Descriptors:** Recommendations for `ulimit -n` configuration to support 300+ sockets.
+
+## 4. Critical Challenges & Solutions
+Address the following technical risks explicitly:
+
+1.  **ADB Stability:** 
+    *   Risk: `adbd` crashing or becoming unresponsive due to rapid polling (`screencap`).
+    *   Solution: Propose a dynamic throttling algorithm or staggered request schedule.
+2.  **Network Jitter & Packet Loss:** 
+    *   Risk: Video stuttering on poor Wi-Fi connections.
+    *   Solution: Adaptive frame dropping, client-side prediction, or fallback codecs.
+3.  **Reconnection Logic:** 
+    *   Requirement: Automatic reconnection for dropped devices without manual intervention.
+    *   Strategy: Exponential backoff with immediate retry on critical events.
+4.  **Security:** 
+    *   Ensure ADB commands cannot be injected via WebSocket inputs.
+    *   Secure authentication for WebSocket upgrades.
+
+## 5. Deliverables
+Please provide the following outputs:
+
+1.  **Hardware Spec Sheet:** Detailed CPU/RAM/Network recommendations.
+2.  **Architecture Diagram Description:** Text-based representation of data flow (User -> WebSockets -> Rust Gateway -> ADB Daemon).
+3.  **Code Structure Outline:**
+    *   Key Rust Structs (`DevicePool`, `ActiveSession`, `BroadcastHub`).
+    *   Main Async Loop pseudo-code for frame capture and dispatch.
+4.  **Operational Checklist:** Steps for deployment, monitoring (Prometheus/Grafana metrics to track), and maintenance.
+
+## 6. Success Criteria
+*   **Latency:** End-to-end latency (Tap -> Screen Update) < 200ms.
+*   **Stability:** Zero downtime for device reconnections.
+*   **Scalability:** System handles 300 concurrent streams without CPU saturation (>80%).

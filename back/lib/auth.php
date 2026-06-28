@@ -30,7 +30,7 @@ function require_login(): array {
 
 function require_admin(): array {
     $u = require_login();
-    if ($u['role'] !== 'admin') { http_response_code(403); echo 'Forbidden'; exit; }
+    if ($u['role'] !== 'admin') { header('Location: /cloud_dashboard.php'); exit; }
     return $u;
 }
 

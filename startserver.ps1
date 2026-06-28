@@ -1,6 +1,6 @@
-# Start the full Panda stack: Docker (nginx/php/mysql) + the Rust panda.exe.
+# Start the full Catcat stack: Docker (nginx/php/mysql) + the Rust catcat.exe.
 # - Always stops any old instances first (no double-run).
-# - Runs panda.exe in the foreground so its logs stream to this window.
+# - Runs catcat.exe in the foreground so its logs stream to this window.
 # - Cleanup is guarded three ways so nothing is ever left lingering:
 #     1. try/finally  — covers Ctrl+C and errors once the stack is up.
 #     2. PowerShell.Exiting event — backstop for graceful session exit paths
@@ -12,10 +12,10 @@ $compose = Join-Path $PSScriptRoot 'docker\docker-compose.yml'
 
 function Stop-Stack {
     param([string]$Compose)
-    Write-Host "`n[panda] stopping..." -ForegroundColor Yellow
-    Stop-Process -Name "panda" -Force -ErrorAction SilentlyContinue
+    Write-Host "`n[catcat] stopping..." -ForegroundColor Yellow
+    Stop-Process -Name "catcat" -Force -ErrorAction SilentlyContinue
     docker compose -f $Compose stop
-    Write-Host "[panda] stopped." -ForegroundColor Yellow
+    Write-Host "[catcat] stopped." -ForegroundColor Yellow
 }
 
 # 1. Clean slate — kill anything from a previous run before starting.
@@ -25,19 +25,19 @@ Stop-Stack -Compose $compose
 #    $compose is passed via -MessageData since the action runs in its own scope.
 $exitJob = Register-EngineEvent PowerShell.Exiting -MessageData $compose -Action {
     $c = $Event.MessageData
-    Stop-Process -Name "panda" -Force -ErrorAction SilentlyContinue
+    Stop-Process -Name "catcat" -Force -ErrorAction SilentlyContinue
     docker compose -f $c stop
 }
 
 # 3. Everything that needs teardown lives inside the try, so even a Ctrl+C
 #    during `docker compose up` is cleaned up by finally.
 try {
-    Write-Host "[panda] starting Docker stack..." -ForegroundColor Cyan
+    Write-Host "[catcat] starting Docker stack..." -ForegroundColor Cyan
     docker compose -f $compose up -d
 
-    Write-Host "[panda] starting Rust server (Ctrl+C to stop everything)..." -ForegroundColor Cyan
+    Write-Host "[catcat] starting Rust server (Ctrl+C to stop everything)..." -ForegroundColor Cyan
     Set-Location (Join-Path $PSScriptRoot 'server')
-    & .\target\debug\panda.exe
+    & .\target\debug\catcat.exe
 }
 finally {
     Set-Location $PSScriptRoot

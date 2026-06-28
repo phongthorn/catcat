@@ -36,6 +36,8 @@ pub struct ScrcpySession {
     serial: String,
     max_size: u32,
     bitrate: u32,
+    fps: u32,
+    video_codec: String,
     // Host TCP port forwarded to the device socket, plus the scid that names
     // that socket. Both are per-session so two devices can stream at once — the
     // old hard-coded 27183 / scid=32 let only one through (two `forward
@@ -47,7 +49,7 @@ pub struct ScrcpySession {
 }
 
 impl ScrcpySession {
-    pub fn new(serial: String, max_size: u32, bitrate: u32) -> Self {
+    pub fn new(serial: String, max_size: u32, bitrate: u32, fps: u32, video_codec: String) -> Self {
         // An OS-assigned ephemeral port (bind :0, read it back, drop the
         // listener) gives each session its own free host port; adb forward then
         // claims it. Tiny TOCTOU window before adb binds — fine at this scale.
@@ -60,6 +62,8 @@ impl ScrcpySession {
             serial,
             max_size,
             bitrate,
+            fps,
+            video_codec,
             port,
             scid,
             control_tx: Mutex::new(None),
@@ -93,8 +97,8 @@ impl ScrcpySession {
         // device sends more real pixels; video_bit_rate 8 Mbps keeps the larger
         // frame's detail instead of turning into compression blocks.
         let server_cmd = format!(
-            "CLASSPATH={} app_process / com.genymobile.scrcpy.Server {} log_level=INFO scid={:08x} audio=false video_encoder=OMX.google.h264.encoder max_size={} max_fps=60 video_bit_rate={} tunnel_forward=true cleanup=false clipboard_autosync=false stay_awake=true",
-            DEVICE_SERVER_PATH, SCRCPY_VERSION, self.scid, self.max_size, self.bitrate
+            "CLASSPATH={} app_process / com.genymobile.scrcpy.Server {} log_level=INFO scid={:08x} audio=false video_codec={} max_size={} max_fps={} video_bit_rate={} tunnel_forward=true cleanup=false clipboard_autosync=false stay_awake=true",
+            DEVICE_SERVER_PATH, SCRCPY_VERSION, self.scid, self.video_codec, self.max_size, self.fps, self.bitrate
         );
         let adb_path2 = adb_path.clone();
         let serial2 = serial.clone();
@@ -111,10 +115,12 @@ impl ScrcpySession {
         // scrcpy tunnel_forward mode waits for BOTH connections before sending the handshake,
         // so we must open the control socket before reading the video handshake.
         let mut video_stream = Self::connect_with_retry(self.port, 5).await?;
+        let _ = video_stream.set_nodelay(true);
         info!("Connected to scrcpy video socket");
 
         // Connect control socket before reading handshake (server needs both before it proceeds)
         let mut control_stream = Self::connect_with_retry(self.port, 3).await?;
+        let _ = control_stream.set_nodelay(true);
         info!("Connected to scrcpy control socket");
 
         // scrcpy v2 tunnel_forward handshake on video socket:
@@ -143,9 +149,14 @@ impl ScrcpySession {
         }
 
         // Channel: scrcpy video frames → WebSocket
-        // Small buffer (4) + try_send = drop stale frames instead of buffering them.
-        // This is the key to low-latency streaming — never queue more than ~66 ms.
-        let (frame_tx, frame_rx) = mpsc::channel::<Vec<u8>>(4);
+        // Buffer of 2 + try_send = drop stale frames. At 60fps, 2 frames = ~33ms max buffer.
+        // First item sent is always a JSON meta frame so the browser knows the codec.
+        let (frame_tx, frame_rx) = mpsc::channel::<Vec<u8>>(2);
+        let meta = format!(
+            r#"{{"type":"meta","codec":{},"width":{},"height":{}}}"#,
+            codec, width, height
+        );
+        let _ = frame_tx.try_send(meta.into_bytes());
         // Channel: WebSocket input → scrcpy control
         let (ctrl_tx, mut ctrl_rx) = mpsc::channel::<Vec<u8>>(64);
         // Stop signal
@@ -238,6 +249,12 @@ impl ScrcpySession {
             tx.send(msg).await.ok();
         }
         Ok(())
+    }
+
+    pub async fn send_raw_input(&self, data: Vec<u8>) {
+        if let Some(tx) = self.control_tx.lock().await.as_ref() {
+            let _ = tx.try_send(data);
+        }
     }
 
     pub async fn stop(&self) {

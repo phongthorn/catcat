@@ -1,4 +1,4 @@
-# Rendered by the nginx image's envsubst entrypoint: ${PANDA_WS_SECRET} is
+# Rendered by the nginx image's envsubst entrypoint: ${CATCAT_WS_SECRET} is
 # substituted from the container environment (set in docker/.env). nginx's own
 # runtime variables ($host, $http_upgrade, …) are left untouched because they
 # are not present in the environment.
@@ -21,8 +21,8 @@ server {
     http2 on;
     server_name _;
 
-    ssl_certificate     /etc/nginx/certs/panda.crt;
-    ssl_certificate_key /etc/nginx/certs/panda.key;
+    ssl_certificate     /etc/nginx/certs/catcat.crt;
+    ssl_certificate_key /etc/nginx/certs/catcat.key;
 
     # PHP portal lives here; public/ is the only web-exposed directory.
     root  /var/www/front/public;
@@ -54,7 +54,7 @@ server {
         fastcgi_param HTTP_X_ORIGINAL_URI $request_uri;
     }
 
-    # ── Rust panda server: video/touch WS only ──────────────────────
+    # ── Rust catcat server: video/touch WS only ──────────────────────
     # The /api endpoints (session provisioning, device list) are NOT exposed
     # publicly: session.php reaches Rust over the internal Docker network
     # (config rust_http) after user_owns_serial() passes. Proxying /api here
@@ -71,7 +71,7 @@ server {
         proxy_set_header Connection $connection_upgrade;
         # Shared secret so the headless Rust server accepts the upgrade only
         # from this proxy, not from a LAN peer hitting :8080 directly.
-        proxy_set_header X-Panda-Auth "${PANDA_WS_SECRET}";
+        proxy_set_header X-Catcat-Auth "${CATCAT_WS_SECRET}";
 
         # Long-lived, unbuffered stream.
         proxy_buffering off;

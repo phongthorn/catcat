@@ -11,7 +11,7 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Panda · <?= htmlspecialchars($serial) ?></title>
+  <title>Catcat · <?= htmlspecialchars($serial) ?></title>
   <style>
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;font-family:system-ui,sans-serif}
@@ -160,8 +160,9 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
     <div class="np-label">ความละเอียด</div>
     <div class="np-row">
       <select id="sel-size" title="ความละเอียด" aria-label="ความละเอียด">
-        <option value="480">480p  –  3 Mbps</option>
-        <option value="720" selected>720p  –  5 Mbps</option>
+        <option value="480">480</option>
+        <option value="720" selected>720</option>
+        <option value="1080">1080</option>
       </select>
     </div>
 
@@ -295,8 +296,15 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
     pingLoop();
 
     // ── Video decoder ───────────────────────────────────────────────
-    let ws = null, decoder = null, sps = null, pps = null, gotKey = false;
-    let firstFrame = false, curSize = 720, latRecvTime = 0;
+    let ws = null, decoder = null, gotKey = false;
+    let firstFrame = false, curSize = 720;
+    // Parameter sets: h264 uses sps+pps; h265 uses vps+sps+pps
+    let paramSets = [];       // array of raw NALU Uint8Arrays (with start codes)
+    let streamCodec = 'h264'; // updated from meta message
+
+    // Codec IDs from scrcpy handshake
+    const CODEC_H264 = 0x68323634;
+    const CODEC_H265 = 0x68323635;
 
     function stripStart(n){
       if(n[0]===0&&n[1]===0&&n[2]===0&&n[3]===1) return n.slice(4);
@@ -305,11 +313,22 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
     }
 
     function configureDecoder(){
-      if(!sps||!pps) return;
+      if(!paramSets.length) return;
       if(decoder&&decoder.state!=='closed') decoder.close();
       gotKey = false;
-      const s = stripStart(sps);
-      const codec = `avc1.${s[1].toString(16).padStart(2,'0')}${s[2].toString(16).padStart(2,'0')}${s[3].toString(16).padStart(2,'0')}`;
+
+      let codec;
+      if(streamCodec === 'h265'){
+        // H.265: use standard HEVC codec string (Main profile, Level 4)
+        codec = 'hev1.1.6.L120.B0';
+      } else {
+        // H.264: derive codec string from SPS bytes
+        const sps = paramSets.find(p => (stripStart(p)[0] & 0x1f) === 7);
+        if(!sps) return;
+        const s = stripStart(sps);
+        codec = `avc1.${s[1].toString(16).padStart(2,'0')}${s[2].toString(16).padStart(2,'0')}${s[3].toString(16).padStart(2,'0')}`;
+      }
+
       decoder = new VideoDecoder({
         output: (frame)=>{
           if(canvas.width!==frame.displayWidth || canvas.height!==frame.displayHeight){
@@ -320,7 +339,7 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
           frame.close();
           if(!firstFrame){ firstFrame=true; hideLoading(); applySize(); }
         },
-        error: ()=>{ gotKey=false; }
+        error: (e)=>{ console.warn('decoder error', e); gotKey=false; }
       });
       decoder.configure({codec, optimizeForLatency:true});
     }
@@ -336,45 +355,109 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
       return nalus;
     }
 
+    // Get NAL unit type — H.264 uses 1-byte header, H.265 uses 2-byte header
+    function nalType(raw){
+      if(streamCodec === 'h265') return (raw[0] >> 1) & 0x3f;
+      return raw[0] & 0x1f;
+    }
+
+    // H.264: SPS=7, PPS=8, IDR=5
+    // H.265: VPS=32, SPS=33, PPS=34, IDR_W_RADL=19, IDR_N_LP=20
+    function isParamSet(t){ return streamCodec==='h265' ? t>=32&&t<=34 : t===7||t===8; }
+    function isIDR(t){       return streamCodec==='h265' ? t===19||t===20 : t===5; }
+
     function feed(data){
       let needReconf=false, hasIDR=false;
       for(const nalu of splitNALUs(data)){
         const raw=stripStart(nalu); if(!raw.length) continue;
-        const t=raw[0]&0x1f;
-        if(t===7){ sps=nalu; needReconf=true; }
-        else if(t===8){ pps=nalu; needReconf=true; }
-        else if(t===5) hasIDR=true;
+        const t=nalType(raw);
+        if(isParamSet(t)){
+          // Replace or add param set (keyed by type)
+          const idx = paramSets.findIndex(p => nalType(stripStart(p)) === t);
+          if(idx>=0) paramSets[idx]=nalu; else paramSets.push(nalu);
+          needReconf=true;
+        } else if(isIDR(t)) hasIDR=true;
       }
       if(needReconf) configureDecoder();
       if(!decoder||decoder.state!=='configured') return;
       if(hasIDR) gotKey=true;
       if(!gotKey) return;
-      if(decoder.decodeQueueSize>2) return;
+      if(decoder.decodeQueueSize>1) return;
+      // Prepend param sets before every IDR so decoder never loses context
       let chunk=data;
-      if(hasIDR&&(data[4]&0x1f)!==7&&sps&&pps){
-        const c=new Uint8Array(sps.length+pps.length+data.length);
-        c.set(sps,0); c.set(pps,sps.length); c.set(data,sps.length+pps.length); chunk=c;
+      if(hasIDR&&paramSets.length){
+        const total=paramSets.reduce((s,p)=>s+p.length,0)+data.length;
+        const c=new Uint8Array(total); let off=0;
+        for(const p of paramSets){ c.set(p,off); off+=p.length; }
+        c.set(data,off); chunk=c;
       }
       try{ decoder.decode(new EncodedVideoChunk({type:hasIDR?'key':'delta',timestamp:performance.now()*1000,data:chunk})); }
       catch(e){ console.warn('decode',e.message); }
     }
 
-    // ── Touch / mouse → device ──────────────────────────────────────
-    function sendTouch(action, e){
-      if(!ws||ws.readyState!==WebSocket.OPEN) return;
-      e.preventDefault();
-      const r=canvas.getBoundingClientRect();
-      const t=e.touches&&e.touches[0]?e.touches[0]:e;
-      const x=(t.clientX-r.left)/r.width, y=(t.clientY-r.top)/r.height;
-      if(x<0||x>1||y<0||y>1) return;
-      ws.send(JSON.stringify({action,x,y,w:canvas.width,h:canvas.height}));
+    // ── Touch / mouse → device (binary scrcpy protocol) ─────────────
+    // Builds a 32-byte scrcpy v2 INJECT_TOUCH_EVENT message and sends it
+    // as a binary WebSocket frame. No JSON parse needed on the Rust side.
+    function buildTouchMsg(action, pointerId, absX, absY, sw, sh, isDown) {
+      const buf = new ArrayBuffer(32);
+      const v = new DataView(buf);
+      v.setUint8(0, 0x02);                        // type: INJECT_TOUCH_EVENT
+      v.setUint8(1, action);                      // 0=down,1=up,2=move
+      v.setBigUint64(2, BigInt(pointerId), false);// pointerId (8 bytes)
+      v.setUint32(10, absX, false);               // x absolute pixels
+      v.setUint32(14, absY, false);               // y absolute pixels
+      v.setUint16(18, sw, false);                 // screenWidth
+      v.setUint16(20, sh, false);                 // screenHeight
+      v.setUint16(22, isDown ? 0xFFFF : 0, false);// pressure
+      v.setUint32(24, 0, false);                  // actionButton
+      v.setUint32(28, 0, false);                  // buttons
+      return buf;
     }
-    canvas.addEventListener('touchstart', e=>sendTouch(0,e),{passive:false});
-    canvas.addEventListener('touchend',   e=>sendTouch(1,e),{passive:false});
-    canvas.addEventListener('touchmove',  e=>sendTouch(2,e),{passive:false});
-    canvas.addEventListener('mousedown',  e=>sendTouch(0,e));
-    canvas.addEventListener('mouseup',    e=>sendTouch(1,e));
-    canvas.addEventListener('mousemove',  e=>{ if(e.buttons) sendTouch(2,e); });
+
+    function sendTouchPoint(action, clientX, clientY, pointerId) {
+      if(!ws || ws.readyState !== WebSocket.OPEN) return;
+      // Drop input if WebSocket is backlogged — prevents stale event queue
+      if(ws.bufferedAmount > 8192) return;
+      const r = canvas.getBoundingClientRect();
+      const nx = (clientX - r.left) / r.width;
+      const ny = (clientY - r.top) / r.height;
+      if(nx < 0 || nx > 1 || ny < 0 || ny > 1) return;
+      const sw = canvas.width, sh = canvas.height;
+      const buf = buildTouchMsg(action, pointerId & 0xF, Math.round(nx*sw), Math.round(ny*sh), sw, sh, action !== 1);
+      ws.send(buf);
+    }
+
+    // Throttle move events to 60fps (16ms) per pointer to avoid flooding WS
+    const moveTimers = {};
+    function onMove(clientX, clientY, pointerId) {
+      const now = performance.now();
+      if(moveTimers[pointerId] && now - moveTimers[pointerId] < 16) return;
+      moveTimers[pointerId] = now;
+      sendTouchPoint(2, clientX, clientY, pointerId);
+    }
+
+    // Pointer events cover both mouse and touch with multi-touch support
+    canvas.addEventListener('pointerdown', e => {
+      canvas.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      sendTouchPoint(0, e.clientX, e.clientY, e.pointerId);
+    }, {passive:false});
+    canvas.addEventListener('pointerup', e => {
+      e.preventDefault();
+      sendTouchPoint(1, e.clientX, e.clientY, e.pointerId);
+      delete moveTimers[e.pointerId];
+    }, {passive:false});
+    canvas.addEventListener('pointermove', e => {
+      if(e.buttons === 0) return;
+      e.preventDefault();
+      // Use coalesced events for smoother swipe paths
+      const evts = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+      for(const ce of evts) onMove(ce.clientX, ce.clientY, e.pointerId);
+    }, {passive:false});
+    canvas.addEventListener('pointercancel', e => {
+      sendTouchPoint(1, e.clientX, e.clientY, e.pointerId);
+      delete moveTimers[e.pointerId];
+    });
 
     // ── Loading overlay ─────────────────────────────────────────────
     function showLoading(text){ msgText.textContent=text||'Loading…'; msg.style.display='flex'; }
@@ -399,7 +482,8 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
       if(typeof VideoDecoder==='undefined'){ showLoading('เบราว์เซอร์ไม่รองรับ WebCodecs'); return; }
       curSize=size; firstFrame=false; showLoading('Loading…');
       try{
-        const res  = await fetch('/session.php?serial='+encodeURIComponent(SERIAL)+'&size='+curSize);
+        // Always encode at max quality (1080p). curSize controls only display size.
+        const res  = await fetch('/session.php?serial='+encodeURIComponent(SERIAL)+'&size=1080');
         const data = await res.json();
         if(!data.session_id) throw new Error(data.error||'no session');
         const proto = location.protocol==='https:'?'wss:':'ws:';
@@ -414,6 +498,17 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
         };
         ws.onerror = ()=>{ panelBadge.textContent='!'; };
         ws.onmessage = (e)=>{
+          if(typeof e.data === 'string'){
+            // Meta frame: {"type":"meta","codec":1751476789,"width":...,"height":...}
+            try{
+              const m = JSON.parse(e.data);
+              if(m.type === 'meta'){
+                streamCodec = m.codec === 0x68323635 ? 'h265' : 'h264';
+                console.log('[catcat] stream codec:', streamCodec, m.width+'x'+m.height);
+              }
+            }catch(_){}
+            return;
+          }
           bwBytes += e.data.byteLength;
           feed(new Uint8Array(e.data));
         };

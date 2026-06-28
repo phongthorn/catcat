@@ -56,8 +56,8 @@ adb shell chmod 755 /data/local/tmp/XWCaptureScreen.jar
 
 Add to PowerShell profile (`$PROFILE`):
 ```powershell
-function serverstart { Stop-Process -Name "panda" -Force -ErrorAction SilentlyContinue; Set-Location D:\app\panda\server; .\target\debug\panda.exe }
-function serverstop  { Stop-Process -Name "panda" -Force -ErrorAction SilentlyContinue; Write-Host "Server stopped" }
+function serverstart { Stop-Process -Name "catcat" -Force -ErrorAction SilentlyContinue; Set-Location D:\app\catcat\server; .\target\debug\catcat.exe }
+function serverstop  { Stop-Process -Name "catcat" -Force -ErrorAction SilentlyContinue; Write-Host "Server stopped" }
 ```
 
 ### 4. First run
@@ -72,7 +72,7 @@ cargo run
 
 ## Architecture
 
-Panda is a Rust/Axum web server that streams an Android device's screen to a browser via WebSocket, using the scrcpy protocol over ADB.
+Catcat is a Rust/Axum web server that streams an Android device's screen to a browser via WebSocket, using the scrcpy protocol over ADB.
 
 ### Data flow
 

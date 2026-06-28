@@ -14,10 +14,10 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
 
 $rust = rtrim(config()['rust_http'], '/');
 // The headless Rust server gates every route on this shared secret so a LAN
-// peer can't reach :8080 directly. Must match PANDA_WS_SECRET on the Rust host.
-$secret = getenv('PANDA_WS_SECRET') ?: '';
+// peer can't reach :8080 directly. Must match CATCAT_WS_SECRET on the Rust host.
+$secret = getenv('CATCAT_WS_SECRET') ?: '';
 $ctx = stream_context_create(['http' => [
-    'header'  => "X-Panda-Auth: {$secret}\r\n",
+    'header'  => "X-Catcat-Auth: {$secret}\r\n",
     'timeout' => 5,
 ]]);
 // ?size=480|720|1080|1440 — passed to Rust as max_size; Rust clamps to allowed values.

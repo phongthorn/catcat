@@ -1,5 +1,5 @@
 <?php
-// Panda Portal — config template.
+// Catcat Portal — config template.
 // Copy to config.php and fill in real values. config.php is gitignored.
 // Values below are written from the perspective of the php-fpm CONTAINER.
 return [
@@ -7,9 +7,9 @@ return [
     'db' => [
         'host' => 'mysql',
         'port' => 3306,
-        'name' => 'panda',
-        'user' => 'panda',
-        'pass' => 'panda-pw',
+        'name' => 'catcat',
+        'user' => 'catcat',
+        'pass' => 'catcat-pw',
     ],
 
     // Host adb server, reached over raw TCP (no adb binary in the container).
@@ -17,7 +17,7 @@ return [
     'adb_host' => 'host.docker.internal',
     'adb_port' => 5037,
 
-    // Base URL of the UNTOUCHED Rust panda server, from inside the container.
+    // Base URL of the UNTOUCHED Rust catcat server, from inside the container.
     // Used server-side by PHP to provision sessions (/api/session/:serial).
     // The browser's WebSocket URL is derived client-side from window.location
     // (same-origin via nginx), NOT from Rust's hardcoded ws_url.

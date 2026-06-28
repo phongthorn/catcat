@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   username      VARCHAR(64) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,                       -- password_hash() output
   role          ENUM('customer','admin') NOT NULL DEFAULT 'customer',
+  credits       DECIMAL(10,2) NOT NULL DEFAULT 0.00,         -- prepaid balance topped up by admin
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS devices (
   serial      VARCHAR(128) PRIMARY KEY,
   label       VARCHAR(128),
   is_rentable TINYINT(1) NOT NULL DEFAULT 1,                 -- shown in the rental catalog
+  tier        ENUM('VIP','KVIP','SVIP','XVIP') NULL,         -- rental tier assigned by admin
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -34,6 +36,7 @@ CREATE TABLE IF NOT EXISTS leases (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   user_id    INT NOT NULL,
   serial     VARCHAR(128) NOT NULL,
+  tier       VARCHAR(16) NULL,                               -- tier that was rented (VIP/KVIP/SVIP/XVIP)
   expires_at DATETIME NULL,                                  -- NULL = no expiry
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)       ON DELETE CASCADE,

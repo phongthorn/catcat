@@ -78,7 +78,7 @@ impl AdbClient {
     pub async fn push_file(&self, serial: &str, local: &[u8], remote: &str) -> Result<()> {
         // Use adb.exe CLI for push (sync protocol is complex to implement raw)
         let adb_path = crate::find_adb();
-        let tmp = std::env::temp_dir().join("panda_push_tmp");
+        let tmp = std::env::temp_dir().join("catcat_push_tmp");
         tokio::fs::write(&tmp, local).await?;
         let output = tokio::process::Command::new(adb_path)
             .args(["-s", serial, "push", tmp.to_str().unwrap(), remote])

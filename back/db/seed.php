@@ -1,6 +1,6 @@
 <?php
 // One-time seed for the Phase 1 thin slice. Run inside the php container:
-//   docker exec panda-php php /var/www/portal/db/seed.php
+//   docker exec catcat-php php /var/www/portal/db/seed.php
 require_once __DIR__ . '/../lib/db.php';
 
 $pdo = db();

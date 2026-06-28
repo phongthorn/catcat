@@ -13,7 +13,7 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
     exit;
 }
 
-$cacheDir = sys_get_temp_dir() . '/panda-thumbs';
+$cacheDir = sys_get_temp_dir() . '/catcat-thumbs';
 @mkdir($cacheDir, 0777, true);
 $cacheFile = $cacheDir . '/' . preg_replace('/[^A-Za-z0-9_-]/', '_', $serial) . '.jpg';
 $maxAgeMs  = (int) config()['thumb_refresh_ms'];

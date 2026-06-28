@@ -1,10 +1,10 @@
 [package]
-name = "panda"
+name = "catcat"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "panda"
+name = "catcat"
 path = "src/main.rs"
 
 [dependencies]

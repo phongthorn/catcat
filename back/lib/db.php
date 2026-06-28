@@ -1,5 +1,5 @@
 <?php
-// PDO connection to the panda MySQL database. One shared instance per request.
+// PDO connection to the catcat MySQL database. One shared instance per request.
 function db(): PDO {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
