@@ -68,9 +68,14 @@ if ($activeIds === null) {
     if (is_readable($logFile)) {
         $connected    = [];
         $disconnected = [];
-        // Read only the last 5000 lines to avoid huge file scans
-        $lines = array_slice(file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES), -5000);
-        foreach ($lines as $line) {
+        // Read only the last 512 KB from end of file — O(1) regardless of log size
+        $fh   = fopen($logFile, 'rb');
+        $size = fstat($fh)['size'];
+        $window = min($size, 524288); // 512 KB
+        fseek($fh, -$window, SEEK_END);
+        $chunk = fread($fh, $window);
+        fclose($fh);
+        foreach (explode("\n", $chunk) as $line) {
             if (preg_match('/WebSocket connected for session ([0-9a-f-]{36})/i', $line, $m)) {
                 $connected[$m[1]] = true;
             } elseif (preg_match('/WebSocket disconnected for session ([0-9a-f-]{36})/i', $line, $m)) {

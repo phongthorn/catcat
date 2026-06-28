@@ -1212,14 +1212,14 @@ window.switchTab = function(name) {
   clearInterval(monTimer);
   if (name === 'monitor') {
     fetchMonitor();
-    monTimer = setInterval(fetchMonitor, 5000);
+    monTimer = setInterval(fetchMonitor, 2000);
   }
 };
 
 // Auto-start if monitor tab is active on load
 if (document.getElementById('pane-monitor').classList.contains('active')) {
   fetchMonitor();
-  monTimer = setInterval(fetchMonitor, 5000);
+  monTimer = setInterval(fetchMonitor, 2000);
 }
 </script>
 </body>
