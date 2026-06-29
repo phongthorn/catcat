@@ -262,9 +262,12 @@ impl ScrcpySession {
             let _ = tx.send(());
         }
         let adb_path = crate::find_adb();
-        // Kill scrcpy server on device so it stops encoding immediately
+        // Kill only this session's scrcpy process (matched by its unique scid arg).
+        // A broad "pkill app_process" would also kill any new session that raced
+        // its scrcpy launch against this stop() call.
+        let kill_cmd = format!("pkill -f 'scid={:08x}' 2>/dev/null; true", self.scid);
         let _ = tokio::process::Command::new(&adb_path)
-            .args(["-s", &self.serial, "shell", "pkill -f app_process 2>/dev/null; true"])
+            .args(["-s", &self.serial, "shell", &kill_cmd])
             .output().await;
         // Remove adb forward
         let _ = tokio::process::Command::new(&adb_path)

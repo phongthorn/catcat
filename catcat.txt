@@ -1,0 +1,88 @@
+---
+ขั้นตอนที่ 1 — Start ADB daemon
+
+& "D:\app\catcat\server\target\debug\tools\adb.exe" start-server
+
+ต้องรันก่อนเสมอ catcat.exe ต้องการ ADB ที่ 127.0.0.1:5037
+
+---
+ขั้นตอนที่ 2 — Start ทั้งระบบ (Docker + Rust server)
+
+cd D:\app\catcat
+.\startserver.ps1
+
+Script นี้จะ:
+  - หยุด instance เก่าทั้งหมดก่อน
+  - รัน Docker stack (nginx + PHP + MySQL) แบบ -d
+  - รัน catcat.exe ใน foreground (Ctrl+C เพื่อหยุดทุกอย่าง)
+
+หรือจะให้ Claude รันให้ก็ได้ บอกว่า "start server"
+
+---
+ขั้นตอนที่ 3 — Seed ฐานข้อมูล (ครั้งแรกเท่านั้น)
+
+รอให้ Docker พร้อมก่อน (~15 วินาที) แล้วรัน:
+
+docker exec catcat-php php /var/www/back/db/seed.php
+
+สร้าง user และ device ตัวอย่าง:
+
+┌──────────┬───────────┬──────────┐
+│ username │ password  │ role     │
+├──────────┼───────────┼──────────┤
+│ demo     │ demo1234  │ customer │
+├──────────┼───────────┼──────────┤
+│ admin    │ admin1234 │ admin    │
+└──────────┴───────────┴──────────┘
+
+---
+ขั้นตอนที่ 4 — เปิดเบราว์เซอร์
+
+https://localhost/
+
+▎ เบราว์เซอร์จะแจ้ง "ใบรับรองไม่ปลอดภัย" เพราะเป็น self-signed cert — กด Advanced → Proceed ได้เลย
+
+---
+การใช้งานหลัก
+
+https://localhost/login.php              → เข้าสู่ระบบ
+https://localhost/                       → dashboard (เครื่องที่เช่าอยู่)
+https://localhost/cloud_dashboard.php    → เหมือนกัน (redirect)
+https://localhost/focus.php?serial=XXXX → ดูหน้าจอ + ควบคุมเครื่อง
+https://localhost/rent.php               → เช่าเครื่อง
+https://localhost/admin_dashboard.php   → จัดการระบบ (admin เท่านั้น)
+
+---
+หยุดระบบ
+
+Ctrl+C ในหน้าต่างที่รัน startserver.ps1
+
+หรือรัน script หยุดโดยตรง:
+
+cd D:\app\catcat
+.\stopserver.ps1
+
+---
+ถ้า catcat.exe หยุดทำงานเอง (กรณีฉุกเฉิน)
+
+Stop-Process -Name "catcat" -Force -ErrorAction SilentlyContinue
+cd D:\app\catcat\server
+.\target\debug\catcat.exe
+
+---
+ถ้า Docker หยุด
+
+cd D:\app\catcat\docker
+docker compose down
+docker compose up -d
+
+---
+โครงสร้างโปรเจกต์
+
+D:\app\catcat\
+  server/          → Rust server (catcat.exe) + ADB tools
+  front/public/    → PHP portal สำหรับผู้ใช้งาน
+  back/            → PHP backend (lib/, db/) ใช้ร่วมกัน
+  docker/          → nginx + php-fpm + mysql compose stack
+  startserver.ps1  → Start ทุกอย่างพร้อมกัน
+  stopserver.ps1   → Stop ทุกอย่าง

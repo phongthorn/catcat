@@ -321,8 +321,17 @@ $isAdmin = ($user['role'] === 'admin');
 
     .card-timer {
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .3px;
+      transition: color .3s;
+    }
+    .card-timer.warn   { color: var(--orange); }
+    .card-timer.urgent { color: var(--red); animation: pulse-timer 1s ease-in-out infinite; }
+    @keyframes pulse-timer {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: .5; }
     }
 
     .card-label {
@@ -332,6 +341,15 @@ $isAdmin = ($user['role'] === 'admin');
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .card-serial {
+      font-size: 10px;
+      color: var(--text-3);
+      font-family: ui-monospace, "SF Mono", monospace;
+      letter-spacing: .4px;
+      margin-top: 2px;
+      user-select: all;
     }
 
     .card-status {
@@ -486,6 +504,10 @@ $isAdmin = ($user['role'] === 'admin');
       <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       เช่าเครื่อง
     </a>
+    <a class="nav-item" href="/topup.php">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v12M3 7l5-5 5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      เติมเครดิต
+    </a>
     <?php if ($isAdmin): ?>
     <a class="nav-item" href="/admin_dashboard.php">
       <svg viewBox="0 0 16 16" fill="none"><path d="M2 12V9a6 6 0 1 1 12 0v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="1" y="11" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -517,6 +539,11 @@ $isAdmin = ($user['role'] === 'admin');
 
   <!-- Main -->
   <main>
+    <?php if (($_GET['topup'] ?? '') === 'ok'): ?>
+    <div style="padding:12px 16px;border-radius:12px;font-size:13px;margin-bottom:20px;background:rgba(48,209,88,.12);border:1px solid rgba(48,209,88,.25);color:#34c759;">
+      ส่งคำขอเติมเครดิตสำเร็จ รอ admin อนุมัติภายใน 24 ชั่วโมง
+    </div>
+    <?php endif; ?>
     <div class="page-title">เครื่องของฉัน</div>
 
     <div id="cards">
@@ -533,10 +560,9 @@ $isAdmin = ($user['role'] === 'admin');
         $conn     = str_contains($d['serial'], ':') ? 'WiFi' : 'USB';
         $leftTxt  = '';
         if ($d['expires_at']) {
-            $secs    = strtotime($d['expires_at']) - time();
-            $leftTxt = $secs > 0
-                ? sprintf('%02d:%02d', intdiv($secs, 3600), intdiv($secs % 3600, 60))
-                : 'หมดเวลา';
+            $expiresTs = strtotime($d['expires_at']);
+            $secs      = $expiresTs - time();
+            $leftTxt   = $secs > 0 ? '...' : 'หมดเวลา';
         }
       ?>
         <a class="device-card <?= $isOnline ? 'online' : 'offline' ?>"
@@ -545,10 +571,11 @@ $isAdmin = ($user['role'] === 'admin');
             <div class="card-top">
               <span class="card-conn"><?= $conn ?></span>
               <?php if ($leftTxt): ?>
-                <span class="card-timer"><?= htmlspecialchars($leftTxt) ?></span>
+                <span class="card-timer" data-expires="<?= $expiresTs ?>"><?= htmlspecialchars($leftTxt) ?></span>
               <?php endif; ?>
             </div>
             <div class="card-label" title="<?= htmlspecialchars($label) ?>"><?= htmlspecialchars($label) ?></div>
+            <div class="card-serial"><?= htmlspecialchars($d['serial']) ?></div>
             <div class="card-status">
               <span class="status-dot <?= $isOnline ? 'on' : 'off' ?>"></span>
               <span class="status-text"><?= $isOnline ? 'ออนไลน์' : 'ออฟไลน์' ?></span>
@@ -632,6 +659,30 @@ $isAdmin = ($user['role'] === 'admin');
   });
 
   setInterval(() => document.querySelectorAll('img.thumb').forEach(loadThumb), REFRESH);
+
+  // Live countdown timers
+  function tickCountdowns() {
+    const now = Math.floor(Date.now() / 1000);
+    document.querySelectorAll('.card-timer[data-expires]').forEach(el => {
+      const exp  = parseInt(el.dataset.expires, 10);
+      const secs = exp - now;
+      if (secs <= 0) {
+        el.textContent = 'หมดเวลา';
+        el.className   = 'card-timer urgent';
+        return;
+      }
+      const d  = Math.floor(secs / 86400);
+      const h  = Math.floor((secs % 86400) / 3600);
+      const m  = Math.floor((secs % 3600) / 60);
+      const s  = secs % 60;
+      el.textContent = d > 0
+        ? `${d}ว ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
+        : `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      el.className = secs < 3600 ? 'card-timer urgent' : secs < 86400 ? 'card-timer warn' : 'card-timer';
+    });
+  }
+  tickCountdowns();
+  setInterval(tickCountdowns, 1000);
 </script>
 </body>
 </html>

@@ -2,7 +2,8 @@
 require_once __DIR__ . '/../../back/lib/auth.php';
 $user = require_login();
 $serial = $_GET['serial'] ?? '';
-if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
+$isAudit = ($user['role'] === 'admin' && !user_owns_serial((int) $user['id'], $serial));
+if ($serial === '' || ($user['role'] !== 'admin' && !user_owns_serial((int) $user['id'], $serial))) {
     http_response_code(403); echo 'Forbidden'; exit;
 }
 ?>
@@ -127,8 +128,14 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
 </head>
 <body>
 
+  <?php if ($isAudit): ?>
+  <div style="position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,159,10,.18);border-bottom:1px solid rgba(255,159,10,.4);padding:5px 12px;font-size:11px;font-weight:700;color:#ffb340;letter-spacing:.3px;text-align:center;">
+    <span style="pointer-events:none;">AUDIT MODE — <?= htmlspecialchars($serial) ?> — </span><a href="/admin_dashboard.php?tab=sessions" style="color:#ffb340;text-decoration:underline;">กลับ Admin</a>
+  </div>
+  <?php endif; ?>
+
   <!-- Stats bar: bandwidth + latency — always on screen, top-center -->
-  <div id="stats-bar">
+  <div id="stats-bar" style="<?= $isAudit ? 'top:38px;' : '' ?>">
     <div id="bw-pill" class="stat-pill idle">
       <span class="dot"></span>
       <span id="bw-val">—</span>
@@ -489,7 +496,7 @@ if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
         const proto = location.protocol==='https:'?'wss:':'ws:';
         ws = new WebSocket(`${proto}//${location.host}/ws/${data.session_id}`);
         ws.binaryType = 'arraybuffer';
-        ws.onopen  = ()=>{ panelSerial.textContent=SERIAL; panelBadge.textContent=curSize+'p'; };
+        ws.onopen  = ()=>{ panelSerial.textContent=SERIAL; panelBadge.textContent=curSize+'p'; paramSets=[]; gotKey=false; };
         ws.onclose = ()=>{
           panelBadge.textContent='–';
           bwVal.textContent='—'; bwPill.className='stat-pill idle';

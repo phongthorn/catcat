@@ -1,0 +1,27 @@
+สาเหตุชัดเจนแล้ว:
+
+- Config อยู่ที่: C:\Users\MMC-PHONG\.cloudflared\config.yml (user profile)
+- Service รันด้วย SYSTEM account → ไม่เห็น config ในนั้น → tunnel ไม่ start
+
+วิธีแก้: copy config + credentials ไปที่ path ที่ SYSTEM account อ่านได้ แล้ว reinstall service
+
+# 1. หยุด service เดิม
+Stop-Service Cloudflared
+
+# 2. Uninstall service เดิม
+& "C:\Program Files (x86)\cloudflared\cloudflared.exe" service uninstall
+
+# 3. Copy config และ credentials ไปที่ ProgramData
+New-Item -ItemType Directory -Force "C:\ProgramData\cloudflared"
+Copy-Item "$env:USERPROFILE\.cloudflared\config.yml" "C:\ProgramData\cloudflared\config.yml"
+Copy-Item "$env:USERPROFILE\.cloudflared\2f22f096-0106-41ac-b02f-88ce0eaa94b8.json" "C:\ProgramData\cloudflared\2f22f096-0106-41ac-b02f-88ce0eaa94b8.json"
+
+# 4. แก้ credentials-file path ใน config ให้ชี้ที่ ProgramData
+# เปิด C:\ProgramData\cloudflared\config.yml แล้วแก้ credentials-file เป็น:
+# credentials-file: C:\ProgramData\cloudflared\2f22f096-0106-41ac-b02f-88ce0eaa94b8.json
+
+# 5. Reinstall service
+& "C:\Program Files (x86)\cloudflared\cloudflared.exe" --config "C:\ProgramData\cloudflared\config.yml" service install
+
+# 6. Start service
+Start-Service Cloudflared

@@ -46,10 +46,29 @@ try {
     Write-Host "[catcat] starting Docker stack..." -ForegroundColor Cyan
     docker compose -f $compose up -d
 
-    Write-Host "[catcat] starting Rust server (Ctrl+C to stop everything)..." -ForegroundColor Cyan
     Set-Location (Join-Path $PSScriptRoot 'server')
     $logFile = Join-Path $PSScriptRoot 'server\catcat.log'
-    & .\target\debug\catcat.exe 2>&1 | Tee-Object -FilePath $logFile -Append
+
+    # Auto-restart: if catcat.exe exits, restart after 3s.
+    # Crashes faster than 5s stop the loop so they can be debugged.
+    $env:RUST_BACKTRACE = '1'
+    $attempt = 0
+    while ($true) {
+        $attempt++
+        $start = Get-Date
+        Write-Host "[catcat] starting Rust server (attempt $attempt)..." -ForegroundColor Cyan
+        & .\target\debug\catcat.exe | Tee-Object -FilePath $logFile -Append
+        $code = $LASTEXITCODE
+        $ran = [int]((Get-Date) - $start).TotalSeconds
+        Write-Host "[catcat] exited (code=$code, ran ${ran}s)" -ForegroundColor Yellow
+        Add-Content -Path $logFile -Value "[catcat] EXIT code=$code ran=${ran}s at $(Get-Date -Format 'o')"
+        if ($ran -lt 5) {
+            Write-Host "[catcat] crashed too fast, stopping." -ForegroundColor Red
+            break
+        }
+        Write-Host "[catcat] restarting in 3s..." -ForegroundColor Cyan
+        Start-Sleep -Seconds 3
+    }
 }
 finally {
     Set-Location $PSScriptRoot

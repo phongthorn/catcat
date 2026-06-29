@@ -23,3 +23,4 @@ uuid = { version = "1", features = ["v4"] }
 dashmap = "5"
 which = "6"
 dotenvy = "0.15"
+sysinfo = { version = "0.31", default-features = false, features = ["system", "network"] }

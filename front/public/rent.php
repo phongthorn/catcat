@@ -73,14 +73,10 @@ $tiers = [
 ];
 
 $servers = [
-    ['id' => 'th', 'name' => 'Thailand',      'ms' => 9],
-    ['id' => 'sg', 'name' => 'Singapore',     'ms' => 41],
-    ['id' => 'hk', 'name' => 'Hongkong',      'ms' => 72],
-    ['id' => 'tw', 'name' => 'Taiwan',        'ms' => 82],
-    ['id' => 'us', 'name' => 'United States', 'ms' => 91],
+    ['id' => 'th', 'name' => 'Thailand',  'ms' => 9],
+    ['id' => 'sg', 'name' => 'Singapore', 'ms' => 41],
+    ['id' => 'hk', 'name' => 'Hongkong',  'ms' => 72],
 ];
-
-$versions = ['12.0', '15.0', '10.0', '8.1'];
 
 // ── CSRF ──────────────────────────────────────────────────────────────────────
 start_session();
@@ -95,6 +91,18 @@ $stCredit = $pdo->prepare('SELECT credits FROM users WHERE id = ?');
 $stCredit->execute([$user['id']]);
 $userCredits = (float) $stCredit->fetchColumn();
 
+// ── Available device count per tier ──────────────────────────────────────────
+$stAvail = $pdo->query(
+    'SELECT tier, COUNT(*) AS cnt FROM devices
+      WHERE is_rentable = 1
+        AND serial NOT IN (SELECT serial FROM leases WHERE expires_at IS NULL OR expires_at > NOW())
+      GROUP BY tier'
+);
+$availCount = [];
+foreach ($stAvail->fetchAll(PDO::FETCH_ASSOC) as $row) {
+    $availCount[$row['tier']] = (int)$row['cnt'];
+}
+
 // ── Handle NEXT submission ───────────────────────────────────────────────────
 $confirmed = false;
 $order     = [];
@@ -106,12 +114,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         http_response_code(403); echo 'CSRF mismatch'; exit;
     }
 
-    $tier    = $_POST['tier']    ?? '';
-    $version = $_POST['version'] ?? '';
-    $server  = $_POST['server']  ?? '';
+    $tier    = $_POST['tier']   ?? '';
+    $server  = $_POST['server'] ?? '';
     $qty     = max(1, min(10, (int)($_POST['qty'] ?? 1)));
     $pkgIdx  = (int)($_POST['pkg'] ?? 0);
-    $formState = ['tier' => $tier, 'version' => $version, 'server' => $server, 'qty' => $qty, 'pkg' => $pkgIdx];
+    $formState = ['tier' => $tier, 'server' => $server, 'qty' => $qty, 'pkg' => $pkgIdx];
 
     if (isset($tiers[$tier]) && $pkgIdx >= 0 && $pkgIdx < 3) {
         $pkg   = $tiers[$tier]['packages'][$pkgIdx];
@@ -155,7 +162,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $userCredits = $freshCredits - $total;
                     $order = [
                         'tier'         => $tier,
-                        'version'      => $version,
                         'server'       => $server,
                         'qty'          => $qty,
                         'days'         => $days,
@@ -359,6 +365,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       background: var(--tier-color, var(--accent));
       border-radius: 2px 2px 0 0;
     }
+    .tab-avail {
+      display: block;
+      font-size: 10px; font-weight: 600; letter-spacing: 0;
+      color: var(--text-3); margin-top: 2px;
+    }
+    .tier-tab.active .tab-avail { color: var(--tier-color, var(--accent)); opacity: .7; }
 
     /* Specs */
     .specs-row {
@@ -591,6 +603,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       เช่าเครื่อง
     </a>
+    <a class="nav-item" href="/topup.php">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M8 2v12M3 7l5-5 5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      เติมเครดิต
+    </a>
     <?php if ($isAdmin): ?>
     <a class="nav-item" href="/admin_dashboard.php">
       <svg viewBox="0 0 16 16" fill="none"><path d="M2 12V9a6 6 0 1 1 12 0v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="1" y="11" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="11" width="4" height="3" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
@@ -631,7 +647,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="confirm-sub">เครื่องพร้อมใช้งานทันที ไปที่หน้าหลักเพื่อเริ่มใช้งาน</div>
       <table class="confirm-table">
         <tr><td>แพ็กเกจ</td><td><?= htmlspecialchars($order['tier']) ?> · <?= (int)$order['days'] ?> วัน</td></tr>
-        <tr><td>เวอร์ชัน Android</td><td><?= htmlspecialchars($order['version']) ?></td></tr>
         <tr><td>เซิร์ฟเวอร์</td><td><?= htmlspecialchars($order['server']) ?></td></tr>
         <tr><td>จำนวน</td><td><?= (int)$order['qty'] ?> เครื่อง</td></tr>
         <tr><td>เครื่องที่ได้รับ</td><td><?= htmlspecialchars(implode(', ', $order['serials'])) ?></td></tr>
@@ -661,25 +676,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <button type="button" class="tier-tab<?= $t === 'SVIP' ? ' active' : '' ?>"
                   data-tier="<?= $t ?>" onclick="selectTier('<?= $t ?>')">
             <?= $t ?>
+            <span class="tab-avail"><?= $availCount[$t] ?? 0 ?></span>
           </button>
           <?php endforeach; ?>
         </div>
 
         <!-- Specs -->
         <div class="specs-row" id="specsRow"></div>
-
-        <!-- Version -->
-        <div class="rent-section">
-          <div class="section-title">เลือกเวอร์ชัน Android</div>
-          <div class="pill-group" id="versionGroup">
-            <?php foreach ($versions as $i => $v): ?>
-            <button type="button" class="pill<?= $i === 0 ? ' active' : '' ?>"
-                    data-ver="<?= $v ?>" onclick="selectVersion('<?= $v ?>')">
-              <?= $v ?>
-            </button>
-            <?php endforeach; ?>
-          </div>
-        </div>
 
         <!-- Server -->
         <div class="rent-section">
@@ -718,12 +721,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div><!-- .rent-panel -->
 
       <!-- Hidden fields -->
-      <input type="hidden" name="csrf"    value="<?= $csrf ?>">
-      <input type="hidden" name="tier"    id="f_tier"    value="SVIP">
-      <input type="hidden" name="version" id="f_version" value="12.0">
-      <input type="hidden" name="server"  id="f_server"  value="th">
-      <input type="hidden" name="qty"     id="f_qty"     value="1">
-      <input type="hidden" name="pkg"     id="f_pkg"     value="0">
+      <input type="hidden" name="csrf"   value="<?= $csrf ?>">
+      <input type="hidden" name="tier"   id="f_tier"   value="SVIP">
+      <input type="hidden" name="server" id="f_server" value="th">
+      <input type="hidden" name="qty"    id="f_qty"    value="1">
+      <input type="hidden" name="pkg"    id="f_pkg"    value="0">
 
     </form><!-- #rentForm -->
 
@@ -743,11 +745,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 const CATALOG = <?= json_encode($tiers, JSON_UNESCAPED_UNICODE) ?>;
 
 let state = {
-  tier:    'SVIP',
-  version: '12.0',
-  server:  'th',
-  qty:     1,
-  pkg:     0,
+  tier:   'SVIP',
+  server: 'th',
+  qty:    1,
+  pkg:    0,
 };
 
 // ── Tier colors ───────────────────────────────────────────────────────────────
@@ -816,12 +817,6 @@ function selectTier(tier) {
   updateTotal();
 }
 
-function selectVersion(ver) {
-  state.version = ver;
-  document.querySelectorAll('.pill').forEach(el => el.classList.toggle('active', el.dataset.ver === ver));
-  document.getElementById('f_version').value = ver;
-}
-
 function selectServer(id) {
   state.server = id;
   document.querySelectorAll('.server-chip').forEach(el => el.classList.toggle('active', el.dataset.server === id));
@@ -854,21 +849,18 @@ function closeSidebar() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-const INIT = <?= json_encode($formState ?? ['tier'=>'SVIP','version'=>'12.0','server'=>'th','qty'=>1,'pkg'=>0]) ?>;
-state.tier    = INIT.tier;
-state.version = INIT.version;
-state.server  = INIT.server;
-state.qty     = INIT.qty;
-state.pkg     = INIT.pkg;
+const INIT = <?= json_encode($formState ?? ['tier'=>'SVIP','server'=>'th','qty'=>1,'pkg'=>0]) ?>;
+state.tier   = INIT.tier;
+state.server = INIT.server;
+state.qty    = INIT.qty;
+state.pkg    = INIT.pkg;
 document.querySelectorAll('.tier-tab').forEach(el => el.classList.toggle('active', el.dataset.tier === INIT.tier));
-document.querySelectorAll('.pill').forEach(el => el.classList.toggle('active', el.dataset.ver === INIT.version));
 document.querySelectorAll('.server-chip').forEach(el => el.classList.toggle('active', el.dataset.server === INIT.server));
 document.getElementById('qtyVal').textContent = INIT.qty;
-document.getElementById('f_tier').value    = INIT.tier;
-document.getElementById('f_version').value = INIT.version;
-document.getElementById('f_server').value  = INIT.server;
-document.getElementById('f_qty').value     = INIT.qty;
-document.getElementById('f_pkg').value     = INIT.pkg;
+document.getElementById('f_tier').value   = INIT.tier;
+document.getElementById('f_server').value = INIT.server;
+document.getElementById('f_qty').value    = INIT.qty;
+document.getElementById('f_pkg').value    = INIT.pkg;
 applyTierColors(INIT.tier);
 renderSpecs(INIT.tier);
 renderPackages(INIT.tier, INIT.qty, INIT.pkg);

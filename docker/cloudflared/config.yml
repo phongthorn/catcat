@@ -1,0 +1,9 @@
+tunnel: 2f22f096-0106-41ac-b02f-88ce0eaa94b8
+credentials-file: /etc/cloudflared/2f22f096-0106-41ac-b02f-88ce0eaa94b8.json
+
+ingress:
+  - hostname: littlecat.net
+    service: https://nginx:443
+    originRequest:
+      noTLSVerify: true
+  - service: http_status:404

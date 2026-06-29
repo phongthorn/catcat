@@ -3,9 +3,9 @@ services:
     image: nginx:1.27-alpine
     container_name: catcat-nginx
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    networks:
+      - default
+      - mmc-edge
     volumes:
       # Templates are rendered by the image's envsubst entrypoint so the
       # shared secret is injected at runtime, never committed to the conf.
@@ -63,5 +63,23 @@ services:
       timeout: 5s
       retries: 5
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: catcat-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ${CLOUDFLARED_CREDS_FILE}:/etc/cloudflared/2f22f096-0106-41ac-b02f-88ce0eaa94b8.json:ro
+    networks:
+      - default
+      - mmc-edge
+    depends_on:
+      - nginx
+
 volumes:
   mysql-data:
+
+networks:
+  mmc-edge:
+    external: true

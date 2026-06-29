@@ -1,0 +1,99 @@
+# Catcat — คู่มือ Start/Stop
+
+## Start ทุกอย่างใน 1 คำสั่ง
+
+```powershell
+D:\app\catcat\startserver.ps1
+```
+
+สคริปต์นี้จะทำตามลำดับ:
+1. หยุด catcat.exe + Docker stack เก่า (ถ้ามี)
+2. Start ADB daemon — `server\target\debug\adb.exe start-server`
+3. Start Docker stack — MySQL → PHP → nginx → cloudflared
+4. Start Rust catcat server ใน foreground (Ctrl+C เพื่อหยุดทุกอย่าง)
+
+**เข้าใช้งาน:** https://littlecat.net
+
+---
+
+## Start แยกส่วน
+
+### ADB
+
+```powershell
+D:\app\catcat\server\target\debug\adb.exe start-server
+D:\app\catcat\server\target\debug\adb.exe devices    # ตรวจสอบ device
+```
+
+### Docker stack (nginx + php + mysql + cloudflared)
+
+```powershell
+cd D:\app\catcat\docker
+docker compose up -d        # start ทั้งหมดใน background
+docker compose ps           # ดู status
+docker compose logs -f      # ดู log realtime
+docker compose down         # หยุดทั้งหมด
+```
+
+### Rust catcat server
+
+```powershell
+cd D:\app\catcat\server
+.\target\debug\catcat.exe   # ต้องให้ ADB + Docker stack ขึ้นก่อน
+```
+
+---
+
+## ตรวจสอบ Services
+
+```powershell
+# Docker containers ทั้งหมด
+docker ps
+
+# Log cloudflared tunnel
+cd D:\app\catcat\docker
+docker compose logs cloudflared --tail 20
+
+# Log nginx
+docker compose logs nginx --tail 20
+
+# ตรวจสอบ ADB
+D:\app\catcat\server\target\debug\adb.exe devices
+```
+
+---
+
+## Build (ครั้งแรก หรือหลัง code เปลี่ยน)
+
+```powershell
+cd D:\app\catcat\server
+cargo build
+```
+
+---
+
+## Stack Architecture
+
+```
+Browser
+  └─ https://littlecat.net  (Cloudflare Edge — SSL terminate)
+       └─ Cloudflare Tunnel
+            └─ [docker] cloudflared  →  https://nginx:443
+                 └─ [docker] nginx   →  php:9000        (PHP portal)
+                                     →  host:8080 /ws/  (scrcpy stream)
+                      └─ [docker] php
+                      └─ [docker] mysql
+                      └─ [host]   catcat.exe  ←  adb.exe  ←  Android device
+```
+
+---
+
+## Files ที่ต้องมีก่อน Start
+
+| ไฟล์ | หมายเหตุ |
+|------|----------|
+| `docker/.env` | copy จาก `.env.example` แล้วใส่ค่าจริง |
+| `server/target/debug/catcat.exe` | `cargo build` ใน `server/` |
+| `server/target/debug/adb.exe` | มีอยู่แล้วใน repo |
+| `C:\Users\MMC-PHONG\.cloudflared\` | credentials JSON ของ Cloudflare Tunnel |
+| Docker Desktop | ต้องรันอยู่ก่อน start |

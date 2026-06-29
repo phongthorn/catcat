@@ -6,7 +6,7 @@ header('Content-Type: application/json');
 
 $user = require_login();
 $serial = $_GET['serial'] ?? '';
-if ($serial === '' || !user_owns_serial((int) $user['id'], $serial)) {
+if ($serial === '' || ($user['role'] !== 'admin' && !user_owns_serial((int) $user['id'], $serial))) {
     http_response_code(403);
     echo json_encode(['error' => 'forbidden']);
     exit;
@@ -34,6 +34,8 @@ if (!$data || empty($data['session_id'])) {
 $sid = $data['session_id'];
 $st = db()->prepare('INSERT INTO sessions (session_id, user_id, serial) VALUES (?, ?, ?)');
 $st->execute([$sid, $user['id'], $serial]);
+$isAudit = ($user['role'] === 'admin' && !user_owns_serial((int) $user['id'], $serial));
+log_activity($isAudit ? 'admin_audit_stream' : 'stream_start', $serial, $sid);
 
 // Browser builds the WebSocket URL same-origin from window.location; we only
 // return the session_id (never Rust's hardcoded ws://localhost:8080 ws_url).

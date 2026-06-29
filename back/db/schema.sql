@@ -44,6 +44,22 @@ CREATE TABLE IF NOT EXISTS leases (
   UNIQUE KEY uniq_user_serial (user_id, serial)
 );
 
+-- Credit top-up requests submitted by users (manual slip verification).
+-- Admin reviews each request and approves or rejects.
+CREATE TABLE IF NOT EXISTS topup_requests (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT NOT NULL,
+  amount      DECIMAL(10,2) NOT NULL,
+  slip_path   VARCHAR(255) NOT NULL,
+  status      ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  note        VARCHAR(255) NULL,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at TIMESTAMP NULL,
+  reviewed_by INT NULL,
+  FOREIGN KEY (user_id)     REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Maps a Rust stream session_id to the user who opened it.
 -- Written when PHP provisions a session via Rust /api/session/:serial.
 -- Read by the nginx auth_request endpoint to authorise /ws/{session_id}.
@@ -53,4 +69,19 @@ CREATE TABLE IF NOT EXISTS sessions (
   serial     VARCHAR(128) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Audit trail: login/logout, stream start, admin actions, etc.
+-- username is stored denormalized so logs survive user deletion.
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT NULL,
+  username   VARCHAR(64) NULL,
+  action     VARCHAR(64) NOT NULL,
+  serial     VARCHAR(128) NULL,
+  detail     TEXT NULL,
+  ip         VARCHAR(45) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_al_user    (user_id),
+  INDEX idx_al_created (created_at DESC)
 );
