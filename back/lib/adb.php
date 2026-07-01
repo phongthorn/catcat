@@ -33,7 +33,11 @@ function adb_screencap(string $serial): string {
         $png = '';
         while (!feof($sock)) {
             $chunk = fread($sock, 65536);
-            if ($chunk === false) break;
+            if ($chunk === false || $chunk === '') {
+                $meta = stream_get_meta_data($sock);
+                if ($meta['timed_out']) throw new RuntimeException("screencap read timed out for $serial");
+                break;
+            }
             $png .= $chunk;
         }
         return $png;

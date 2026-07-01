@@ -1,0 +1,31 @@
+Browser  ←──── WebRTC P2P ────→  Android device agent
+          video track (H.264)
+          audio track
+          DataChannel "controlChanel" (touch/input)
+
+1.Signaling flow
+
+1.Browser เชื่อม WebSocket ไปหา signaling server ([phoneCloud] Socket connected)
+2.Server ส่ง TURN credentials มาทาง socket (TTL=3600s) — ไม่ได้ hardcode
+3.Browser สร้าง RTCPeerConnection ด้วย TURN creds นั้น
+4.Exchange SDP offer/answer ผ่าน socket (browser เป็น answerer, device เป็น offerer)
+5.ICE negotiation → ถ้า P2P ได้ก็ใช้ srflx host candidate, fallback เป็น relay (TURN)
+
+2.Video streaming
+-WebRTC video track — ไม่ใช่ WebCodecs/VideoDecoder แบบ catcat
+-Codec: H.264 (video/H264)
+-Resolution: 480×1012 @ 60fps
+-Browser แค่ <video srcObject=stream> เลย — browser จัดการ decode เอง
+
+3.Control/Input
+-RTCDataChannel label: "controlChanel" (สะกดผิดในโค้ดเขา)
+-ส่ง touch events ผ่าน DataChannel แทน WebSocket
+
+
+4. ต้องปรับ catcat อะไรบ้าง
+
+ปัจจุบัน (catcat)	เปลี่ยนเป็น
+Rust server relay H.264 frames ผ่าน WebSocket	WebRTC video track จาก device โดยตรง
+WebCodecs VideoDecoder บน browser	<video srcObject> ธรรมดา
+Touch ส่งผ่าน WebSocket → Rust → ADB	RTCDataChannel → device agent
+No audio	Audio track รวมมาด้วย

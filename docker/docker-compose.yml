@@ -77,6 +77,30 @@ services:
     depends_on:
       - nginx
 
+  coturn:
+    image: coturn/coturn:latest
+    container_name: catcat-coturn
+    restart: unless-stopped
+    # network_mode: host doesn't reach the real Windows NIC — Docker Desktop
+    # runs containers inside its own Linux VM, so "host" means the VM, not
+    # 10.10.2.181. Explicit port mapping lets Docker Desktop's NAT forward
+    # correctly instead.
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49160-49200:49160-49200/udp"
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    # coturn won't map external-ip to a relay candidate unless listening-ip /
+    # relay-ip are also set explicitly — and the container's own IP changes
+    # every recreate (Docker-assigned), so resolve it at startup instead of
+    # hardcoding it in the conf file.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        OWN_IP=$$(hostname -i)
+        exec turnserver -c /etc/coturn/turnserver.conf --listening-ip=$$OWN_IP --relay-ip=$$OWN_IP
+
 volumes:
   mysql-data:
 
